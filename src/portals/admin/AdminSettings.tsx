@@ -1,0 +1,919 @@
+import { useEffect, useRef, useState } from "react";
+import { Camera, Trash2, ArrowUp, ArrowDown, Star, UploadCloud, Plus, GraduationCap, MapPin, Check, X, Lock } from "lucide-react";
+import { useSiteContent, type SiteStat } from "../../context/SiteContentContext";
+import { useListings } from "../../context/ListingsContext";
+import { resizeImageFile } from "../../lib/resizeImage";
+import { uploadCityPhoto, uploadHeroPhoto, uploadPartnerLogo, uploadTestimonialPhoto } from "../../lib/uploadPhoto";
+import { MfaSecuritySection } from "../../components/MfaSecuritySection";
+import { isSiteGateEnabled, setSitePassword, disableSiteGate } from "../../lib/siteGate";
+
+const GRID_SIZE = 10;
+
+export function AdminSettings() {
+  const {
+    cityGrid,
+    setCityGridCity,
+    setCityGridPhoto,
+    removeCityGridSlot,
+    featuredListingIds,
+    isFeatured,
+    toggleFeatured,
+    moveFeatured,
+    siteStats,
+    updateStat,
+    heroPhotos,
+    addHeroPhoto,
+    removeHeroPhoto,
+    moveHeroPhoto,
+    universityEntries,
+    addUniversity,
+    removeUniversity,
+    setUniversityCity,
+    cities: cameroonCities,
+    addCity,
+    removeCity,
+    pendingUniversities,
+    pendingCities,
+    approveUniversity,
+    rejectUniversity,
+    approveCity,
+    rejectCity,
+    partnerLogos,
+    addPartnerLogo,
+    removePartnerLogo,
+    movePartnerLogo,
+    testimonials,
+    addTestimonial,
+    removeTestimonial,
+    moveTestimonial,
+    whatsappSupportNumber,
+    updateWhatsappSupportNumber,
+  } = useSiteContent();
+  const { listings } = useListings();
+  const publishedListings = listings.filter((l) => l.status === "Publiée");
+  const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
+  const [uploadingHero, setUploadingHero] = useState(false);
+  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const heroFileInputRef = useRef<HTMLInputElement>(null);
+  const [newUniversity, setNewUniversity] = useState("");
+  const [newUniversityCity, setNewUniversityCity] = useState("");
+  const [addingUniversity, setAddingUniversity] = useState(false);
+  const [newCity, setNewCity] = useState("");
+  const [addingCity, setAddingCity] = useState(false);
+  const [newLogoName, setNewLogoName] = useState("");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+  const [testimonialForm, setTestimonialForm] = useState({ name: "", university: "", city: "", quote: "", photoUrl: "" });
+  const [uploadingTestimonialPhoto, setUploadingTestimonialPhoto] = useState(false);
+  const [savingTestimonial, setSavingTestimonial] = useState(false);
+  const testimonialPhotoInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAddUniversity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUniversity.trim()) return;
+    setAddingUniversity(true);
+    try {
+      await addUniversity(newUniversity, newUniversityCity);
+      setNewUniversity("");
+      setNewUniversityCity("");
+    } finally {
+      setAddingUniversity(false);
+    }
+  };
+
+  const handleAddCity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCity.trim()) return;
+    setAddingCity(true);
+    try {
+      await addCity(newCity);
+      setNewCity("");
+    } finally {
+      setAddingCity(false);
+    }
+  };
+
+  const citySlots = Array.from({ length: GRID_SIZE }, (_, i) => cityGrid.find((s) => s.position === i));
+
+  const handleCityPhotoChange = async (position: number, city: string, file: File) => {
+    setUploadingSlot(position);
+    try {
+      const resized = await resizeImageFile(file, 1200, 0.85);
+      const url = await uploadCityPhoto(resized, city);
+      await setCityGridPhoto(position, url);
+    } finally {
+      setUploadingSlot(null);
+    }
+  };
+
+  const handleHeroPhotoChange = async (file: File) => {
+    setUploadingHero(true);
+    try {
+      const resized = await resizeImageFile(file, 1600, 0.85);
+      const url = await uploadHeroPhoto(resized);
+      await addHeroPhoto(url);
+    } finally {
+      setUploadingHero(false);
+    }
+  };
+
+  const handleLogoFile = async (file: File) => {
+    setUploadingLogo(true);
+    try {
+      const resized = await resizeImageFile(file, 400, 0.9);
+      const url = await uploadPartnerLogo(resized);
+      await addPartnerLogo(newLogoName, url);
+      setNewLogoName("");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleTestimonialPhotoFile = async (file: File) => {
+    setUploadingTestimonialPhoto(true);
+    try {
+      const resized = await resizeImageFile(file, 400, 0.85);
+      const url = await uploadTestimonialPhoto(resized);
+      setTestimonialForm((f) => ({ ...f, photoUrl: url }));
+    } finally {
+      setUploadingTestimonialPhoto(false);
+    }
+  };
+
+  const handleAddTestimonial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testimonialForm.name.trim() || !testimonialForm.quote.trim()) return;
+    setSavingTestimonial(true);
+    try {
+      await addTestimonial(testimonialForm);
+      setTestimonialForm({ name: "", university: "", city: "", quote: "", photoUrl: "" });
+    } finally {
+      setSavingTestimonial(false);
+    }
+  };
+
+  return (
+    <div className="p-6 sm:p-10 space-y-10">
+      <div>
+        <h1 className="font-display text-2xl font-bold text-brand-navy mb-1">Paramètres</h1>
+        <p className="text-sm text-gray-500">Gérez le contenu affiché sur la page d'accueil.</p>
+      </div>
+
+      <section className="max-w-lg">
+        <h2 className="font-semibold text-brand-navy mb-1">Mon compte</h2>
+        <p className="text-sm text-gray-500 mb-4">Sécurisez votre propre accès administrateur.</p>
+        <MfaSecuritySection />
+      </section>
+
+      <section className="max-w-lg">
+        <h2 className="font-semibold text-brand-navy mb-1">Accès au site (mode test)</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Protège l'ensemble du site derrière un mot de passe partagé — utile pour faire tester le site à des
+          étudiants/propriétaires avant l'ouverture publique. Une fois entré une fois, un visiteur n'a pas besoin de
+          le retaper sur cet appareil.
+        </p>
+        <SiteAccessGateEditor />
+      </section>
+
+      <section className="max-w-lg">
+        <h2 className="font-semibold text-brand-navy mb-1">Numéro WhatsApp support</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Utilisé par le bouton "Besoin d'aide ?" flottant sur tout le site.
+        </p>
+        <WhatsAppNumberEditor number={whatsappSupportNumber} onSave={updateWhatsappSupportNumber} />
+      </section>
+
+      <section>
+        <h2 className="font-semibold text-brand-navy mb-1">Photos du hero</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Photos affichées en grand sur la page d'accueil, en carrousel automatique (défilement toutes les 15
+          secondes). L'ordre ci-dessous détermine l'ordre du carrousel.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+          {heroPhotos.map((photo, i) => (
+            <div key={photo.id} className="group relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
+              <img src={photo.url} alt="" className="h-full w-full object-cover" />
+              <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => moveHeroPhoto(photo.id, "up")}
+                  disabled={i === 0}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-brand-navy disabled:opacity-40"
+                >
+                  <ArrowUp size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveHeroPhoto(photo.id, "down")}
+                  disabled={i === heroPhotos.length - 1}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-brand-navy disabled:opacity-40"
+                >
+                  <ArrowDown size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeHeroPhoto(photo.id)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-red-500"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            disabled={uploadingHero}
+            onClick={() => heroFileInputRef.current?.click()}
+            className="flex aspect-[4/3] flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-brand-blue/40 hover:bg-brand-blue-light/30 transition-colors disabled:opacity-60"
+          >
+            <UploadCloud size={20} />
+            <span className="text-xs font-medium">{uploadingHero ? "Envoi..." : "Ajouter une photo"}</span>
+          </button>
+          <input
+            ref={heroFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleHeroPhotoChange(file);
+              e.target.value = "";
+            }}
+          />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-semibold text-brand-navy mb-1">Photos des villes</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Choisissez la ville et la photo de chacune des {GRID_SIZE} cases de la grille affichée sur la page d'accueil.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+          {citySlots.map((slot, i) => {
+            const city = slot?.city ?? "";
+            const photoUrl = slot?.photoUrl ?? "";
+            return (
+              <div key={i} className="group relative aspect-square rounded-xl overflow-hidden bg-gray-100">
+                {photoUrl ? (
+                  <img src={photoUrl} alt={city} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-gray-300">
+                    {city ? "Aucune photo" : "Case vide"}
+                  </div>
+                )}
+                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button
+                    type="button"
+                    disabled={!city}
+                    onClick={() => fileInputRefs.current[i]?.click()}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-brand-navy disabled:opacity-40"
+                    title={city ? "Changer la photo" : "Choisissez d'abord une ville"}
+                  >
+                    <Camera size={14} />
+                  </button>
+                  {(photoUrl || city) && (
+                    <button
+                      type="button"
+                      onClick={() => removeCityGridSlot(i)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-red-500"
+                      title="Vider cette case"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={(el) => {
+                    fileInputRefs.current[i] = el;
+                  }}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file && city) handleCityPhotoChange(i, city, file);
+                    e.target.value = "";
+                  }}
+                />
+                <select
+                  value={city}
+                  onChange={(e) => setCityGridCity(i, e.target.value)}
+                  className="absolute bottom-1 left-1 right-1 truncate rounded bg-black/70 px-1.5 py-1 text-center text-[10px] font-medium text-white focus:outline-none"
+                >
+                  <option value="" className="text-black">
+                    {uploadingSlot === i ? "Envoi..." : "Choisir une ville"}
+                  </option>
+                  {cameroonCities.map((c) => (
+                    <option key={c} value={c} className="text-black">
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-semibold text-brand-navy mb-1">Logements à la une</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Choisissez les logements publiés à mettre en avant dans le carrousel de la page d'accueil. Ordre = ordre du carrousel.
+        </p>
+        {publishedListings.length === 0 ? (
+          <p className="text-sm text-gray-400">Aucun logement publié pour l'instant.</p>
+        ) : (
+          <div className="space-y-2">
+            {publishedListings
+              .slice()
+              .sort((a, b) => {
+                const posA = featuredListingIds.indexOf(a.id);
+                const posB = featuredListingIds.indexOf(b.id);
+                if (posA === -1 && posB === -1) return 0;
+                if (posA === -1) return 1;
+                if (posB === -1) return -1;
+                return posA - posB;
+              })
+              .map((l) => {
+                const featured = isFeatured(l.id);
+                return (
+                  <div
+                    key={l.id}
+                    className={`flex items-center gap-3 rounded-xl border p-3 ${
+                      featured ? "border-brand-orange bg-brand-orange-light" : "border-gray-100"
+                    }`}
+                  >
+                    {l.image ? (
+                      <img src={l.image} alt={l.title} className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+                    ) : (
+                      <span className="h-12 w-12 shrink-0 rounded-lg bg-gray-100" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-brand-navy">{l.title}</p>
+                      <p className="text-xs text-gray-500">{l.city}</p>
+                    </div>
+                    {featured && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveFeatured(l.id, "up")}
+                          className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/60"
+                        >
+                          <ArrowUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveFeatured(l.id, "down")}
+                          className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/60"
+                        >
+                          <ArrowDown size={14} />
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleFeatured(l.id)}
+                      className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        featured ? "bg-brand-orange text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <Star size={12} className={featured ? "fill-white" : ""} />
+                      {featured ? "En avant" : "Mettre en avant"}
+                    </button>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className="font-semibold text-brand-navy mb-1">Chiffres clés</h2>
+        <p className="text-sm text-gray-500 mb-4">Affichés dans le bandeau de la page d'accueil.</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {siteStats.map((stat) => (
+            <StatEditor key={stat.key} stat={stat} onSave={updateStat} />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-semibold text-brand-navy mb-1">Logos partenaires</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Affichés dans la section "Ils nous font confiance" de la page d'accueil, à la place de simples bulles de
+          texte.
+        </p>
+        <div className="flex flex-wrap gap-4 mb-4">
+          {partnerLogos.map((logo, i) => (
+            <div key={logo.id} className="group relative flex h-20 w-32 flex-col items-center justify-center gap-1 rounded-xl border border-gray-100 bg-white p-2">
+              <img src={logo.url} alt={logo.name} className="h-9 max-w-full object-contain" />
+              <span className="truncate text-[10px] text-gray-400">{logo.name || "—"}</span>
+              <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-xl bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => movePartnerLogo(logo.id, "up")}
+                  disabled={i === 0}
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-brand-navy disabled:opacity-40"
+                >
+                  <ArrowUp size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => movePartnerLogo(logo.id, "down")}
+                  disabled={i === partnerLogos.length - 1}
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-brand-navy disabled:opacity-40"
+                >
+                  <ArrowDown size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removePartnerLogo(logo.id)}
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-red-500"
+                >
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2 max-w-md">
+          <input
+            value={newLogoName}
+            onChange={(e) => setNewLogoName(e.target.value)}
+            placeholder="Nom du partenaire"
+            className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+          />
+          <button
+            type="button"
+            disabled={uploadingLogo}
+            onClick={() => logoFileInputRef.current?.click()}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-dark transition-colors disabled:opacity-60"
+          >
+            <UploadCloud size={15} /> {uploadingLogo ? "Envoi..." : "Ajouter un logo"}
+          </button>
+          <input
+            ref={logoFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleLogoFile(file);
+              e.target.value = "";
+            }}
+          />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-semibold text-brand-navy mb-1">Avis mis en avant</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Avis affichés en carrousel dans la section "Ce que disent les étudiants" de la page d'accueil.
+        </p>
+        <form onSubmit={handleAddTestimonial} className="mb-5 max-w-lg rounded-xl border border-gray-100 p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              disabled={uploadingTestimonialPhoto}
+              onClick={() => testimonialPhotoInputRef.current?.click()}
+              className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-dashed border-gray-300 text-gray-400 hover:border-brand-blue/40"
+            >
+              {testimonialForm.photoUrl ? (
+                <img src={testimonialForm.photoUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <Camera size={16} />
+              )}
+            </button>
+            <input
+              ref={testimonialPhotoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleTestimonialPhotoFile(file);
+                e.target.value = "";
+              }}
+            />
+            <div className="grid flex-1 grid-cols-2 gap-2">
+              <input
+                value={testimonialForm.name}
+                onChange={(e) => setTestimonialForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Prénom *"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              />
+              <input
+                value={testimonialForm.university}
+                onChange={(e) => setTestimonialForm((f) => ({ ...f, university: e.target.value }))}
+                placeholder="Université"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              />
+            </div>
+          </div>
+          <input
+            value={testimonialForm.city}
+            onChange={(e) => setTestimonialForm((f) => ({ ...f, city: e.target.value }))}
+            placeholder="Lieu (ville)"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+          />
+          <textarea
+            value={testimonialForm.quote}
+            onChange={(e) => setTestimonialForm((f) => ({ ...f, quote: e.target.value }))}
+            placeholder="Texte de l'avis *"
+            rows={3}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+          />
+          <button
+            type="submit"
+            disabled={savingTestimonial || !testimonialForm.name.trim() || !testimonialForm.quote.trim()}
+            className="flex items-center gap-1.5 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-dark transition-colors disabled:opacity-60"
+          >
+            <Plus size={15} /> {savingTestimonial ? "Ajout..." : "Ajouter cet avis"}
+          </button>
+        </form>
+        <div className="space-y-2">
+          {testimonials.map((t, i) => (
+            <div key={t.id} className="flex items-start gap-3 rounded-xl border border-gray-100 p-3">
+              {t.photoUrl ? (
+                <img src={t.photoUrl} alt={t.name} className="h-10 w-10 shrink-0 rounded-full object-cover" />
+              ) : (
+                <span className="h-10 w-10 shrink-0 rounded-full bg-gray-200" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-brand-navy">{t.name}</p>
+                <p className="text-xs text-gray-500">{[t.university, t.city].filter(Boolean).join(" · ")}</p>
+                <p className="mt-1 text-xs text-gray-500 line-clamp-2">"{t.quote}"</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => moveTestimonial(t.id, "up")}
+                  disabled={i === 0}
+                  className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-50 disabled:opacity-40"
+                >
+                  <ArrowUp size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveTestimonial(t.id, "down")}
+                  disabled={i === testimonials.length - 1}
+                  className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-50 disabled:opacity-40"
+                >
+                  <ArrowDown size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeTestimonial(t.id)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-red-500 hover:bg-red-50"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-semibold text-brand-navy mb-1">Universités</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          La liste ci-dessous complète automatiquement tous les champs "Université" du site (recherche, profil
+          étudiant, questionnaire propriétaire). La ville associée détermine dans quelle ville cette université
+          apparaît dans le filtre de recherche — une université sans ville assignée apparaît pour toutes les villes.
+        </p>
+        <form onSubmit={handleAddUniversity} className="flex flex-wrap gap-2 mb-4 max-w-lg">
+          <input
+            value={newUniversity}
+            onChange={(e) => setNewUniversity(e.target.value)}
+            placeholder="Ex : Université de Buea"
+            className="min-w-[200px] flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+          />
+          <select
+            value={newUniversityCity}
+            onChange={(e) => setNewUniversityCity(e.target.value)}
+            className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none"
+          >
+            <option value="">Toutes les villes</option>
+            {cameroonCities.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            disabled={addingUniversity || !newUniversity.trim()}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-dark transition-colors disabled:opacity-60"
+          >
+            <Plus size={15} /> Ajouter
+          </button>
+        </form>
+        {pendingUniversities.length > 0 && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="mb-2.5 text-sm font-semibold text-amber-800">
+              En attente de validation ({pendingUniversities.length})
+            </p>
+            <div className="space-y-2">
+              {pendingUniversities.map((u) => (
+                <div key={u} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm">
+                  <span className="flex items-center gap-1.5 text-brand-navy">
+                    <GraduationCap size={13} className="text-amber-600 shrink-0" /> {u}
+                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => approveUniversity(u)}
+                      className="flex items-center gap-1 rounded-lg bg-brand-green-light px-2.5 py-1 text-xs font-semibold text-green-700 hover:bg-green-100"
+                    >
+                      <Check size={12} /> Approuver
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => rejectUniversity(u)}
+                      className="flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100"
+                    >
+                      <X size={12} /> Refuser
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="space-y-1.5">
+          {universityEntries.map((u) => (
+            <div
+              key={u.name}
+              className="flex items-center gap-2 rounded-xl border border-gray-100 px-3 py-2 text-sm"
+            >
+              <GraduationCap size={14} className="text-brand-blue shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-brand-navy">{u.name}</span>
+              <select
+                value={u.city}
+                onChange={(e) => setUniversityCity(u.name, e.target.value)}
+                className="shrink-0 rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none"
+              >
+                <option value="">Toutes les villes</option>
+                {cameroonCities.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => removeUniversity(u.name)}
+                className="shrink-0 text-gray-300 hover:text-red-500"
+                title="Supprimer"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-semibold text-brand-navy mb-1">Villes</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          La liste ci-dessous complète automatiquement tous les champs "Ville" du site (recherche, profil étudiant,
+          questionnaire propriétaire, cases de la grille ci-dessus).
+        </p>
+        <form onSubmit={handleAddCity} className="flex gap-2 mb-4 max-w-md">
+          <input
+            value={newCity}
+            onChange={(e) => setNewCity(e.target.value)}
+            placeholder="Ex : Bafang"
+            className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+          />
+          <button
+            type="submit"
+            disabled={addingCity || !newCity.trim()}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-dark transition-colors disabled:opacity-60"
+          >
+            <Plus size={15} /> Ajouter
+          </button>
+        </form>
+        {pendingCities.length > 0 && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="mb-2.5 text-sm font-semibold text-amber-800">
+              En attente de validation ({pendingCities.length})
+            </p>
+            <div className="space-y-2">
+              {pendingCities.map((c) => (
+                <div key={c} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm">
+                  <span className="flex items-center gap-1.5 text-brand-navy">
+                    <MapPin size={13} className="text-amber-600 shrink-0" /> {c}
+                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => approveCity(c)}
+                      className="flex items-center gap-1 rounded-lg bg-brand-green-light px-2.5 py-1 text-xs font-semibold text-green-700 hover:bg-green-100"
+                    >
+                      <Check size={12} /> Approuver
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => rejectCity(c)}
+                      className="flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100"
+                    >
+                      <X size={12} /> Refuser
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {cameroonCities.map((c) => (
+            <span
+              key={c}
+              className="flex items-center gap-1.5 rounded-full bg-brand-orange-light px-3 py-1.5 text-xs font-medium text-brand-orange-dark"
+            >
+              <MapPin size={13} />
+              {c}
+              <button
+                type="button"
+                onClick={() => removeCity(c)}
+                className="ml-0.5 text-brand-orange-dark/60 hover:text-red-500"
+                title="Supprimer"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function StatEditor({
+  stat,
+  onSave,
+}: {
+  stat: SiteStat;
+  onSave: (key: string, value: string, label: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState(stat.value);
+  const [label, setLabel] = useState(stat.label);
+  const [saved, setSaved] = useState(false);
+  const dirty = value !== stat.value || label !== stat.label;
+
+  const handleSave = async () => {
+    await onSave(stat.key, value, label);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-100 p-4">
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="mb-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-lg font-bold text-brand-navy focus:outline-none"
+      />
+      <input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 focus:outline-none"
+      />
+      {dirty && (
+        <button
+          type="button"
+          onClick={handleSave}
+          className="mt-2 w-full rounded-lg bg-brand-blue py-1.5 text-xs font-semibold text-white hover:bg-brand-blue-dark"
+        >
+          Enregistrer
+        </button>
+      )}
+      {saved && <p className="mt-2 text-center text-xs font-medium text-brand-green">Enregistré</p>}
+    </div>
+  );
+}
+
+function SiteAccessGateEditor() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [disabling, setDisabling] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    isSiteGateEnabled().then(setEnabled);
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password.trim()) return;
+    setError("");
+    setSaving(true);
+    try {
+      await setSitePassword(password);
+      setPassword("");
+      setEnabled(true);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setError("Impossible d'enregistrer le mot de passe.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDisable = async () => {
+    setDisabling(true);
+    try {
+      await disableSiteGate();
+      setEnabled(false);
+    } finally {
+      setDisabling(false);
+    }
+  };
+
+  return (
+    <div>
+      <p className="mb-3 flex items-center gap-1.5 text-xs font-medium">
+        <Lock size={12} className={enabled ? "text-brand-orange" : "text-gray-400"} />
+        {enabled === null ? "Vérification..." : enabled ? "Actif — un mot de passe est demandé" : "Inactif — le site est en accès libre"}
+      </p>
+      <form onSubmit={handleSave} className="flex gap-2 max-w-xs">
+        <input
+          type="text"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder={enabled ? "Nouveau mot de passe" : "Définir un mot de passe"}
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+        />
+        <button
+          type="submit"
+          disabled={saving || !password.trim()}
+          className="shrink-0 rounded-lg bg-brand-blue px-4 py-2 text-xs font-semibold text-white hover:bg-brand-blue-dark disabled:opacity-60"
+        >
+          {saving ? "..." : enabled ? "Changer" : "Activer"}
+        </button>
+      </form>
+      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+      {saved && <p className="mt-2 text-xs font-medium text-brand-green">Mot de passe enregistré</p>}
+      {enabled && (
+        <button
+          type="button"
+          onClick={handleDisable}
+          disabled={disabling}
+          className="mt-3 text-xs font-semibold text-red-500 hover:underline disabled:opacity-60"
+        >
+          {disabling ? "Désactivation..." : "Désactiver le mot de passe (accès libre)"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function WhatsAppNumberEditor({
+  number,
+  onSave,
+}: {
+  number: string;
+  onSave: (value: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState(number);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const dirty = value.trim() !== number;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(value);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="max-w-xs">
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="+33 7 58 91 17 71"
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+      />
+      {dirty && (
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="mt-2 rounded-lg bg-brand-blue px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-blue-dark disabled:opacity-60"
+        >
+          {saving ? "Enregistrement..." : "Enregistrer"}
+        </button>
+      )}
+      {saved && <p className="mt-2 text-xs font-medium text-brand-green">Enregistré</p>}
+    </div>
+  );
+}
